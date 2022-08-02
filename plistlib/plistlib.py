@@ -228,7 +228,7 @@ class Data:
             return id(self) == id(other)
 
     def __repr__(self):
-        return "%s(%s)" % (self.__class__.__name__, repr(self.data))
+        return f"{self.__class__.__name__}({repr(self.data)})"
 
 #
 #
@@ -324,12 +324,12 @@ class _PlistParser:
 
     def handle_begin_element(self, element, attrs):
         self.data = []
-        handler = getattr(self, "begin_" + element, None)
+        handler = getattr(self, f"begin_{element}", None)
         if handler is not None:
             handler(attrs)
 
     def handle_end_element(self, element):
-        handler = getattr(self, "end_" + element, None)
+        handler = getattr(self, f"end_{element}", None)
         if handler is not None:
             handler()
 
@@ -346,11 +346,11 @@ class _PlistParser:
         elif not self.stack:
             # this is the root object
             self.root = value
-        else:
-            if not isinstance(self.stack[-1], type([])):
-                raise ValueError("unexpected element at line %d" %
-                                 self.parser.CurrentLineNumber)
+        elif isinstance(self.stack[-1], type([])):
             self.stack[-1].append(value)
+        else:
+            raise ValueError("unexpected element at line %d" %
+                             self.parser.CurrentLineNumber)
 
     def get_data(self):
         data = ''.join(self.data)
@@ -419,22 +419,22 @@ class _DumbXMLWriter:
 
     def begin_element(self, element):
         self.stack.append(element)
-        self.writeln("<%s>" % element)
+        self.writeln(f"<{element}>")
         self._indent_level += 1
 
     def end_element(self, element):
         assert self._indent_level > 0
         assert self.stack.pop() == element
         self._indent_level -= 1
-        self.writeln("</%s>" % element)
+        self.writeln(f"</{element}>")
 
     def simple_element(self, element, value=None):
         if value is not None:
             value = _escape(value)
-            self.writeln("<%s>%s</%s>" % (element, value, element))
+            self.writeln(f"<{element}>{value}</{element}>")
 
         else:
-            self.writeln("<%s/>" % element)
+            self.writeln(f"<{element}/>")
 
     def writeln(self, line):
         if line:
@@ -499,7 +499,7 @@ class _PlistWriter(_DumbXMLWriter):
             self.write_array(value)
 
         else:
-            raise TypeError("unsupported type: %s" % type(value))
+            raise TypeError(f"unsupported type: {type(value)}")
 
     def write_data(self, data):
         self.write_bytes(data.data)
@@ -520,11 +520,7 @@ class _PlistWriter(_DumbXMLWriter):
     def write_dict(self, d):
         if d:
             self.begin_element("dict")
-            if self._sort_keys:
-                items = sorted(d.items())
-            else:
-                items = d.items()
-
+            items = sorted(d.items()) if self._sort_keys else d.items()
             for key, value in items:
                 if not isinstance(key, str):
                     if self._skipkeys:
@@ -630,7 +626,7 @@ class _BinaryPlistParser:
         if tokenL == 0xF:
             m = self._fp.read(1)[0] & 0x3
             s = 1 << m
-            f = '>' + _BINARY_FORMAT[s]
+            f = f'>{_BINARY_FORMAT[s]}'
             return struct.unpack(f, self._fp.read(s))[0]
 
         return tokenL
@@ -942,11 +938,7 @@ class _BinaryPlistWriter (object):
         elif isinstance(value, dict):
             keyRefs, valRefs = [], []
 
-            if self._sort_keys:
-                rootItems = sorted(value.items())
-            else:
-                rootItems = value.items()
-
+            rootItems = sorted(value.items()) if self._sort_keys else value.items()
             for k, v in rootItems:
                 if not isinstance(k, str):
                     if self._skipkeys:
